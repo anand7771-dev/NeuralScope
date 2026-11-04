@@ -1,7 +1,13 @@
 import type { InferenceConfig } from '@/types'
 
-const RAW_BASE = import.meta.env.VITE_API_URL || '/api'
-const BASE_URL = RAW_BASE.endsWith('/') ? RAW_BASE.slice(0, -1) : RAW_BASE
+export function getBackendBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('neuralscope_backend_url')
+    if (custom) return custom.endsWith('/') ? custom.slice(0, -1) : custom
+  }
+  const raw = import.meta.env.VITE_API_URL || '/api'
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw
+}
 
 // ── Generic helpers ───────────────────────────────────────────────────────
 
@@ -14,11 +20,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 function get<T>(path: string): Promise<T> {
-  return fetch(`${BASE_URL}${path}`).then(r => handleResponse<T>(r))
+  return fetch(`${getBackendBaseUrl()}${path}`).then(r => handleResponse<T>(r))
 }
 
 function post<T>(path: string, body?: unknown): Promise<T> {
-  return fetch(`${BASE_URL}${path}`, {
+  return fetch(`${getBackendBaseUrl()}${path}`, {
     method: 'POST',
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -44,9 +50,10 @@ export const api = {
 
   tensors: {
     get: <T = unknown>(sessionId: string, refId: string, sliceSpec?: string): Promise<T> => {
-      const baseUrlStr = BASE_URL.startsWith('http')
-        ? `${BASE_URL}/tensors/${sessionId}/${refId}`
-        : `${window.location.origin}${BASE_URL}/tensors/${sessionId}/${refId}`
+      const base = getBackendBaseUrl()
+      const baseUrlStr = base.startsWith('http')
+        ? `${base}/tensors/${sessionId}/${refId}`
+        : `${window.location.origin}${base}/tensors/${sessionId}/${refId}`
       const url = new URL(baseUrlStr)
       if (sliceSpec) url.searchParams.set('slice_spec', sliceSpec)
       return fetch(url.toString()).then(r => handleResponse<T>(r))

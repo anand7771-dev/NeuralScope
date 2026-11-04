@@ -43,9 +43,14 @@ export class InferenceWebSocket {
     this.shouldReconnect = true
     this.notifyStatus('connecting')
 
-    const customWs = import.meta.env.VITE_WS_URL
     let wsUrl: string
-    if (customWs) {
+    const localBackend = typeof window !== 'undefined' ? localStorage.getItem('neuralscope_backend_url') : null
+    if (localBackend) {
+      const clean = localBackend.endsWith('/') ? localBackend.slice(0, -1) : localBackend
+      const wsOrigin = clean.replace(/^http/, 'ws')
+      wsUrl = `${wsOrigin}/ws/${this.sessionId}`
+    } else if (import.meta.env.VITE_WS_URL) {
+      const customWs = import.meta.env.VITE_WS_URL
       const cleanWs = customWs.endsWith('/') ? customWs.slice(0, -1) : customWs
       wsUrl = `${cleanWs}/${this.sessionId}`
     } else {
