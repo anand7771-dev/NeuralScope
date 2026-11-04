@@ -43,8 +43,15 @@ export class InferenceWebSocket {
     this.shouldReconnect = true
     this.notifyStatus('connecting')
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws/${this.sessionId}`
+    const customWs = import.meta.env.VITE_WS_URL
+    let wsUrl: string
+    if (customWs) {
+      const cleanWs = customWs.endsWith('/') ? customWs.slice(0, -1) : customWs
+      wsUrl = `${cleanWs}/${this.sessionId}`
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      wsUrl = `${protocol}//${window.location.host}/ws/${this.sessionId}`
+    }
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {

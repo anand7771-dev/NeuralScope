@@ -1,6 +1,7 @@
 import type { InferenceConfig } from '@/types'
 
-const BASE_URL = '/api'
+const RAW_BASE = import.meta.env.VITE_API_URL || '/api'
+const BASE_URL = RAW_BASE.endsWith('/') ? RAW_BASE.slice(0, -1) : RAW_BASE
 
 // ── Generic helpers ───────────────────────────────────────────────────────
 
@@ -43,9 +44,10 @@ export const api = {
 
   tensors: {
     get: <T = unknown>(sessionId: string, refId: string, sliceSpec?: string): Promise<T> => {
-      const url = new URL(
-        `${window.location.origin}${BASE_URL}/tensors/${sessionId}/${refId}`
-      )
+      const baseUrlStr = BASE_URL.startsWith('http')
+        ? `${BASE_URL}/tensors/${sessionId}/${refId}`
+        : `${window.location.origin}${BASE_URL}/tensors/${sessionId}/${refId}`
+      const url = new URL(baseUrlStr)
       if (sliceSpec) url.searchParams.set('slice_spec', sliceSpec)
       return fetch(url.toString()).then(r => handleResponse<T>(r))
     },
