@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+*.egg
+pip-wheel-metadata/
+
+# Models & weights (large files)
+*.bin
+*.safetensors
+*.gguf
+models/
+model_cache/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build/
+*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Backend runtime
+*.log
+*.sqlite
+*.db
+sessions/
+tensor_store/
+
+# Environment files
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env.local
+
+# Temporary
+tmp/
+temp/
+scratch/
+
