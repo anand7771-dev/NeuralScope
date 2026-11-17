@@ -1,5 +1,8 @@
 import type { InferenceConfig, InferenceEvent } from '@/types'
 
+// Gemini API key: read at build time from env, fallback to localStorage at runtime
+const BUILT_IN_GEMINI_KEY: string = import.meta.env.VITE_GEMINI_API_KEY || ''
+
 // ── Seeded PRNG (deterministic per prompt, varied across prompts) ──────
 
 function hashString(str: string): number {
@@ -246,7 +249,7 @@ export class SimulationEngine {
     // 3. Check for direct Gemini API call from browser
     let generatedWords: string[] | null = null
     const geminiKey = typeof window !== 'undefined'
-      ? (localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || null)
+      ? (localStorage.getItem('gemini_api_key') || BUILT_IN_GEMINI_KEY || null)
       : null
 
     if (geminiKey) {
