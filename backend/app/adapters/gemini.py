@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class GeminiAdapter(AbstractModelAdapter):
     """Adapter for Google Gemini models via google-genai SDK."""
 
-    def __init__(self, model_name: str = "gemini-2.0-flash") -> None:
+    def __init__(self, model_name: str = "gemini-3.8-flash") -> None:
         self.model_name = model_name
         self.client = None
         self._is_loaded = False
@@ -163,15 +163,27 @@ class GeminiAdapter(AbstractModelAdapter):
             )
         )
 
-        # 3. Stream from Gemini API
+        # 3. Stream from Gemini API (with model failover)
         step = 0
         total_text = ""
+        model_candidates = [self.model_name, "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash"]
         try:
-            response_stream = await asyncio.to_thread(
-                self.client.models.generate_content_stream,
-                model=self.model_name,
-                contents=prompt,
-            )
+            response_stream = None
+            last_exc = None
+            for model_candidate in model_candidates:
+                try:
+                    response_stream = await asyncio.to_thread(
+                        self.client.models.generate_content_stream,
+                        model=model_candidate,
+                        contents=prompt,
+                    )
+                    break
+                except Exception as model_exc:
+                    last_exc = model_exc
+                    logger.warning("Model %s failed: %s, trying next...", model_candidate, model_exc)
+                    continue
+            if response_stream is None:
+                raise last_exc or Exception("All Gemini models failed")
 
             for chunk in response_stream:
                 chunk_text = chunk.text or ""
@@ -319,3 +331,4 @@ class GeminiAdapter(AbstractModelAdapter):
         )
 
         return {"status": "completed", "total_tokens": step}
+

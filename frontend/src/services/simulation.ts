@@ -248,30 +248,43 @@ export class SimulationEngine {
     const geminiKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null
 
     if (geminiKey) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                maxOutputTokens: maxTokens * 4,
-                temperature: config.temperature ?? 0.7,
-              },
-            }),
+      // Try multiple model names (older ones get deprecated)
+      const modelCandidates = [
+        'gemini-3.8-flash',
+        'gemini-flash-latest',
+        'gemini-3.7-flash',
+        'gemini-3.5-flash',
+      ]
+      for (const modelName of modelCandidates) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  maxOutputTokens: maxTokens * 4,
+                  temperature: config.temperature ?? 0.7,
+                },
+              }),
+            }
+          )
+          const resJson = await response.json()
+          const text = resJson?.candidates?.[0]?.content?.parts?.[0]?.text
+          if (text) {
+            const rawWords = text.match(/\S+|\s+/g) || []
+            generatedWords = rawWords.map((w: string) => w.startsWith(' ') ? w : ' ' + w)
+            break  // Success — stop trying other models
           }
-        )
-        const resJson = await response.json()
-        const text = resJson?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (text) {
-          // Tokenize the real Gemini answer into realistic subwords
-          const rawWords = text.match(/\S+|\s+/g) || []
-          generatedWords = rawWords.map((w: string) => w.startsWith(' ') ? w : ' ' + w)
+          // If 404 or error, try next model
+          if (resJson?.error?.code === 404) continue
+          if (resJson?.error?.code === 503) continue
+        } catch (err) {
+          console.warn(`Gemini model ${modelName} failed:`, err)
+          continue
         }
-      } catch (err) {
-        console.warn('Direct Gemini API call failed, using heuristic responses:', err)
       }
     }
 

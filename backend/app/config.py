@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     # ── Model ─────────────────────────────────────────────────────────────────
     model_cache_dir: str = "./model_cache"
     default_model: str = "gpt2"
+    hf_token: Optional[str] = None
 
     # ── Session limits ────────────────────────────────────────────────────────
     max_sessions: int = 10
