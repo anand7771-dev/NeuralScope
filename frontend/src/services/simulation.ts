@@ -1,24 +1,173 @@
 import type { InferenceConfig, InferenceEvent } from '@/types'
 
-// Realistic candidate pool for GPT-2 autoregressive simulation
-const VOCAB_SAMPLES = [
-  { token: ' have', id: 423, logit: 14.2 },
-  { token: ' will', id: 481, logit: 13.8 },
-  { token: ' can', id: 460, logit: 12.9 },
-  { token: ' are', id: 389, logit: 12.4 },
-  { token: ' become', id: 1813, logit: 11.9 },
-  { token: ' create', id: 2324, logit: 11.5 },
-  { token: ' evolved', id: 7543, logit: 11.1 },
-  { token: ' together', id: 2362, logit: 10.8 },
-  { token: ' into', id: 656, logit: 10.5 },
-  { token: ' a', id: 257, logit: 10.2 },
-  { token: ' new', id: 649, logit: 9.9 },
-  { token: ' civilization', id: 11479, logit: 9.6 },
-  { token: ' across', id: 2478, logit: 9.2 },
-  { token: ' the', id: 262, logit: 9.0 },
-  { token: ' galaxy', id: 12842, logit: 8.8 },
-  { token: '.', id: 13, logit: 8.5 },
+// ── Seeded PRNG (deterministic per prompt, varied across prompts) ──────
+
+function hashString(str: string): number {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash)
+}
+
+function createRng(seed: number) {
+  let s = seed | 0
+  return () => {
+    s = (s * 1664525 + 1013904223) | 0
+    return ((s >>> 0) / 4294967296)
+  }
+}
+
+// ── Response corpus organized by topic keywords ────────────────────────
+
+const TOPIC_RESPONSES: Record<string, string[][]> = {
+  // Science & Nature
+  science: [
+    [' is', ' a', ' fascinating', ' topic', ' that', ' scientists', ' have', ' studied', ' for', ' centuries', ',', ' revealing', ' deep', ' patterns', ' in', ' the', ' natural', ' world', '.'],
+    [' remains', ' one', ' of', ' the', ' most', ' intriguing', ' questions', ' in', ' modern', ' science', ',', ' with', ' researchers', ' uncovering', ' new', ' insights', ' every', ' year', '.'],
+  ],
+  sun: [
+    [' The', ' sun', ' rises', ' from', ' the', ' east', ' and', ' sets', ' in', ' the', ' west', ',', ' a', ' phenomenon', ' caused', ' by', ' Earth', "'s", ' rotation', ' on', ' its', ' axis', '.'],
+    [' rises', ' in', ' the', ' eastern', ' horizon', ' due', ' to', ' the', ' Earth', "'s", ' counter', '-', 'clock', 'wise', ' rotation', ' when', ' viewed', ' from', ' above', ' the', ' North', ' Pole', '.'],
+  ],
+  sunrise: [
+    [' occur', ' in', ' the', ' east', '.', ' This', ' is', ' because', ' the', ' Earth', ' rotates', ' from', ' west', ' to', ' east', ' on', ' its', ' axis', ',', ' making', ' the', ' sun', ' appear', ' to', ' rise', ' in', ' the', ' eastern', ' sky', '.'],
+    [' are', ' visible', ' from', ' the', ' eastern', ' horizon', '.', ' The', ' direction', ' is', ' determined', ' by', ' Earth', "'s", ' rotation', ' about', ' its', ' polar', ' axis', '.'],
+  ],
+  direction: [
+    [' is', ' east', '.', ' The', ' sun', ' always', ' rises', ' in', ' the', ' east', ' and', ' sets', ' in', ' the', ' west', ' because', ' of', ' Earth', "'s", ' rotation', '.'],
+    [' depends', ' on', ' multiple', ' factors', ' including', ' latitude', ',', ' season', ',', ' and', ' the', ' tilt', ' of', ' Earth', "'s", ' axis', '.'],
+  ],
+  east: [
+    [' is', ' where', ' the', ' sun', ' rises', ' every', ' morning', '.', ' This', ' consistent', ' pattern', ' results', ' from', ' the', ' rotation', ' of', ' our', ' planet', '.'],
+  ],
+  // Technology & AI
+  ai: [
+    [' has', ' transformed', ' the', ' way', ' we', ' interact', ' with', ' technology', ',', ' enabling', ' machines', ' to', ' learn', ' patterns', ' from', ' vast', ' amounts', ' of', ' data', '.'],
+    [' continues', ' to', ' evolve', ' rapidly', ',', ' with', ' breakthroughs', ' in', ' natural', ' language', ' processing', ' and', ' computer', ' vision', ' reshaping', ' industries', '.'],
+  ],
+  model: [
+    [' processes', ' input', ' tokens', ' through', ' multiple', ' transformer', ' layers', ',', ' each', ' containing', ' self', '-', 'attention', ' and', ' feed', '-', 'forward', ' networks', '.'],
+    [' uses', ' learned', ' weight', ' matrices', ' to', ' transform', ' input', ' representations', ' into', ' meaningful', ' output', ' predictions', '.'],
+  ],
+  transformer: [
+    [' architecture', ' revolutionized', ' natural', ' language', ' processing', ' by', ' introducing', ' self', '-', 'attention', ' mechanisms', ' that', ' capture', ' long', '-', 'range', ' dependencies', '.'],
+    [' models', ' process', ' sequences', ' in', ' parallel', ' using', ' multi', '-', 'head', ' attention', ',', ' making', ' them', ' far', ' more', ' efficient', ' than', ' recurrent', ' networks', '.'],
+  ],
+  neural: [
+    [' networks', ' learn', ' hierarchical', ' representations', ' of', ' data', ',', ' with', ' each', ' layer', ' extracting', ' increasingly', ' abstract', ' features', '.'],
+    [' computation', ' involves', ' matrix', ' multiplications', ',', ' non', '-', 'linear', ' activations', ',', ' and', ' gradient', '-', 'based', ' optimization', '.'],
+  ],
+  // General knowledge
+  water: [
+    [' is', ' essential', ' for', ' all', ' known', ' forms', ' of', ' life', '.', ' It', ' covers', ' about', ' 71', '%', ' of', ' the', ' Earth', "'s", ' surface', '.'],
+    [' exists', ' in', ' three', ' states', ':', ' solid', ',', ' liquid', ',', ' and', ' gas', ',', ' cycling', ' continuously', ' through', ' the', ' environment', '.'],
+  ],
+  earth: [
+    [' is', ' the', ' third', ' planet', ' from', ' the', ' Sun', ' and', ' the', ' only', ' known', ' celestial', ' body', ' to', ' harbor', ' life', '.'],
+    [' rotates', ' on', ' its', ' axis', ' once', ' every', ' 24', ' hours', ',', ' creating', ' the', ' cycle', ' of', ' day', ' and', ' night', '.'],
+  ],
+  moon: [
+    [' orbits', ' Earth', ' approximately', ' every', ' 27', '.', '3', ' days', ' and', ' influences', ' ocean', ' tides', ' through', ' gravitational', ' pull', '.'],
+  ],
+  history: [
+    [' teaches', ' us', ' valuable', ' lessons', ' about', ' human', ' civilization', ',', ' culture', ',', ' and', ' the', ' forces', ' that', ' shape', ' societies', '.'],
+    [' is', ' filled', ' with', ' pivotal', ' moments', ' that', ' altered', ' the', ' course', ' of', ' human', ' development', '.'],
+  ],
+  future: [
+    [' holds', ' both', ' challenges', ' and', ' opportunities', ' as', ' technology', ' continues', ' to', ' advance', ' at', ' an', ' unprecedented', ' pace', '.'],
+    [' will', ' likely', ' be', ' shaped', ' by', ' artificial', ' intelligence', ',', ' renewable', ' energy', ',', ' and', ' space', ' exploration', '.'],
+  ],
+  code: [
+    [' is', ' the', ' foundation', ' of', ' modern', ' software', ' development', ',', ' enabling', ' humans', ' to', ' communicate', ' instructions', ' to', ' machines', '.'],
+  ],
+  python: [
+    [' is', ' a', ' versatile', ' programming', ' language', ' known', ' for', ' its', ' clean', ' syntax', ' and', ' extensive', ' ecosystem', ' of', ' libraries', '.'],
+  ],
+  math: [
+    [' provides', ' the', ' universal', ' language', ' for', ' describing', ' patterns', ',', ' structures', ',', ' and', ' relationships', ' in', ' the', ' world', '.'],
+  ],
+  life: [
+    [' is', ' a', ' complex', ' phenomenon', ' that', ' emerges', ' from', ' the', ' interaction', ' of', ' matter', ' and', ' energy', ' over', ' billions', ' of', ' years', '.'],
+  ],
+  learn: [
+    [' by', ' forming', ' new', ' neural', ' connections', ' and', ' strengthening', ' existing', ' pathways', ' through', ' repeated', ' practice', ' and', ' exposure', '.'],
+  ],
+  hello: [
+    ['!', ' How', ' are', ' you', ' doing', ' today', '?', ' I', ' am', ' a', ' language', ' model', ' ready', ' to', ' help', ' with', ' your', ' questions', '.'],
+    ['!', ' It', "'s", ' great', ' to', ' connect', '.', ' What', ' would', ' you', ' like', ' to', ' explore', ' today', '?'],
+  ],
+  // People & language
+  love: [
+    [' is', ' a', ' complex', ' emotion', ' involving', ' deep', ' affection', ',', ' attachment', ',', ' and', ' care', ' for', ' another', ' being', '.'],
+  ],
+  music: [
+    [' has', ' been', ' a', ' fundamental', ' part', ' of', ' human', ' culture', ' for', ' thousands', ' of', ' years', ',', ' expressing', ' emotions', ' beyond', ' words', '.'],
+  ],
+  space: [
+    [' is', ' vast', ' and', ' largely', ' unexplored', '.', ' Our', ' universe', ' contains', ' billions', ' of', ' galaxies', ',', ' each', ' with', ' billions', ' of', ' stars', '.'],
+  ],
+}
+
+// Fallback responses when no keyword matches
+const FALLBACK_RESPONSES: string[][] = [
+  [' is', ' an', ' interesting', ' topic', ' that', ' involves', ' multiple', ' interconnected', ' concepts', ' and', ' perspectives', ' worth', ' exploring', ' in', ' greater', ' detail', '.'],
+  [' raises', ' important', ' questions', ' about', ' how', ' we', ' understand', ' and', ' interpret', ' the', ' world', ' around', ' us', '.'],
+  [' can', ' be', ' understood', ' through', ' careful', ' analysis', ' of', ' the', ' underlying', ' principles', ' and', ' mechanisms', ' at', ' work', '.'],
+  [' represents', ' a', ' fascinating', ' area', ' of', ' inquiry', ' that', ' has', ' captured', ' the', ' attention', ' of', ' researchers', ' worldwide', '.'],
+  [' continues', ' to', ' be', ' debated', ' among', ' experts', ',', ' with', ' new', ' evidence', ' emerging', ' from', ' recent', ' studies', ' and', ' experiments', '.'],
+  [' offers', ' a', ' unique', ' window', ' into', ' the', ' complexities', ' of', ' nature', ' and', ' human', ' understanding', '.'],
+  [',', ' when', ' examined', ' closely', ',', ' reveals', ' surprising', ' depth', ' and', ' nuance', ' that', ' challenge', ' conventional', ' assumptions', '.'],
+  [' has', ' significant', ' implications', ' for', ' our', ' understanding', ' of', ' both', ' theoretical', ' and', ' practical', ' domains', '.'],
 ]
+
+// ── Token-level vocabulary for realistic probability distributions ──────
+
+function buildCandidatePool(chosenToken: string, rng: () => number): Array<{token: string; id: number; logit: number}> {
+  const candidates = [
+    ' the', ' a', ' is', ' of', ' to', ' and', ' in', ' that', ' for', ' it',
+    ' with', ' as', ' on', ' are', ' was', ' be', ' at', ' by', ' from', ' or',
+    ' an', ' have', ' has', ' this', ' which', ' their', ' its', ' not', ' but', ' they',
+    ' can', ' will', ' more', ' when', ' about', ' up', ' been', ' would', ' than', ' each',
+    ',', '.', ':', ';', '!', '?', ' -', "'s",
+  ]
+  // Shuffle deterministically and pick top candidates
+  const shuffled = candidates
+    .filter(c => c !== chosenToken)
+    .sort(() => rng() - 0.5)
+    .slice(0, 15)
+
+  return shuffled.map((token, idx) => ({
+    token,
+    id: hashString(token) % 50257,
+    logit: 12.0 - idx * 0.8 + (rng() - 0.5) * 2,
+  }))
+}
+
+// ── Select response based on prompt content ────────────────────────────
+
+function selectResponse(prompt: string, rng: () => number): string[] {
+  const lower = prompt.toLowerCase()
+
+  // Check each topic keyword
+  const matched: string[][] = []
+  for (const [keyword, responses] of Object.entries(TOPIC_RESPONSES)) {
+    if (lower.includes(keyword)) {
+      matched.push(...responses)
+    }
+  }
+
+  if (matched.length > 0) {
+    const idx = Math.floor(rng() * matched.length)
+    return matched[idx]
+  }
+
+  // No keyword match — use fallback, but vary based on prompt hash
+  const idx = Math.floor(rng() * FALLBACK_RESPONSES.length)
+  return FALLBACK_RESPONSES[idx]
+}
+
+// ── Simulation Engine ──────────────────────────────────────────────────
 
 export class SimulationEngine {
   private aborted = false
@@ -39,7 +188,10 @@ export class SimulationEngine {
     this.aborted = false
     const sessionId = `demo-${Date.now().toString(36)}`
     const prompt = config.prompt || 'Hello world'
-    const maxTokens = Math.min(config.max_tokens || 20, 25)
+    const maxTokens = config.max_tokens || 20
+
+    const seed = hashString(prompt + Date.now().toString())
+    const rng = createRng(seed)
 
     const delay = (ms: number) =>
       new Promise<void>((resolve) => {
@@ -64,14 +216,13 @@ export class SimulationEngine {
       },
       tensor_references: [],
     })
-    await delay(120)
+    await delay(100 + rng() * 80)
     if (this.aborted) return
 
-    // 2. Tokenization Completed
-    // Break prompt into simple tokens
+    // 2. Tokenization
     const words = prompt.match(/\S+|\s+/g) || [prompt]
     const promptTokens = words.map((w, idx) => ({
-      token_id: 1000 + idx * 37,
+      token_id: hashString(w) % 50257,
       token_string: w,
       position: idx,
       is_special: false,
@@ -89,39 +240,23 @@ export class SimulationEngine {
       },
       tensor_references: [],
     })
-    await delay(100)
+    await delay(80 + rng() * 60)
     if (this.aborted) return
 
-    // 3. Autoregressive Generation Loop
-    const generatedWords = [
-      ' have',
-      ' begun',
-      ' to',
-      ' merge',
-      ' into',
-      ' an',
-      ' unprecedented',
-      ' symbiotic',
-      ' intelligence',
-      ',',
-      ' reshaping',
-      ' the',
-      ' cosmos',
-      ' forever',
-      '.',
-    ]
-
+    // 3. Select prompt-aware response tokens
+    const generatedWords = selectResponse(prompt, rng)
     const numTokensToGen = Math.min(maxTokens, generatedWords.length)
 
+    // 4. Autoregressive Generation Loop
     for (let step = 0; step < numTokensToGen; step++) {
       if (this.aborted) return
 
-      // Step through all 12 transformer layers
+      // Process all 12 transformer layers
       for (let l = 0; l < 12; l++) {
         if (this.aborted) return
 
         emit({
-          event_id: `evt-${Date.now()}-l${l}s`,
+          event_id: `evt-${Date.now()}-s${step}l${l}s`,
           session_id: sessionId,
           event_type: 'transformer_layer_started',
           timestamp: new Date().toISOString(),
@@ -131,11 +266,10 @@ export class SimulationEngine {
           tensor_references: [],
         })
 
-        // Quick compute time per layer (10-20ms)
-        await delay(15)
+        await delay(10 + rng() * 15)
 
         emit({
-          event_id: `evt-${Date.now()}-l${l}c`,
+          event_id: `evt-${Date.now()}-s${step}l${l}c`,
           session_id: sessionId,
           event_type: 'transformer_layer_completed',
           timestamp: new Date().toISOString(),
@@ -146,34 +280,46 @@ export class SimulationEngine {
         })
       }
 
-      // Next token selection
-      const nextWord = generatedWords[step % generatedWords.length]
-      const chosenId = 2000 + step * 43
+      // Build token candidates
+      const nextWord = generatedWords[step]
+      const chosenId = hashString(nextWord + step.toString()) % 50257
 
-      // Probabilities candidate list
-      const topTokens = VOCAB_SAMPLES.map((s, idx) => ({
-        token_id: idx === 0 ? chosenId : s.id + step,
-        token_string: idx === 0 ? nextWord : s.token,
-        logit: s.logit - idx * 0.7,
-        probability: Math.max(0.01, 0.45 / (idx + 1)),
+      const alternates = buildCandidatePool(nextWord, rng)
+      const chosenLogit = 14.5 + rng() * 2
+      const allCandidates = [
+        { token: nextWord, id: chosenId, logit: chosenLogit },
+        ...alternates,
+      ]
+
+      // Compute softmax probabilities
+      const maxLogit = Math.max(...allCandidates.map(c => c.logit))
+      const exps = allCandidates.map(c => Math.exp(c.logit - maxLogit))
+      const sumExp = exps.reduce((a, b) => a + b, 0)
+      const probs = exps.map(e => e / sumExp)
+
+      const topTokens = allCandidates.map((c, idx) => ({
+        token_id: c.id,
+        token_string: c.token,
+        logit: Math.round(c.logit * 1000) / 1000,
+        probability: Math.round(probs[idx] * 10000) / 10000,
         rank: idx + 1,
       }))
 
       emit({
-        event_id: `evt-${Date.now()}-prob`,
+        event_id: `evt-${Date.now()}-s${step}prob`,
         session_id: sessionId,
         event_type: 'probabilities_calculated',
         timestamp: new Date().toISOString(),
         generation_step: step,
         data: {
           top_tokens: topTokens,
-          sampling_strategy: 'multinomial',
+          sampling_strategy: config.temperature === 0 ? 'greedy' : 'multinomial',
         },
         tensor_references: [],
       })
 
       emit({
-        event_id: `evt-${Date.now()}-sel`,
+        event_id: `evt-${Date.now()}-s${step}sel`,
         session_id: sessionId,
         event_type: 'token_selected',
         timestamp: new Date().toISOString(),
@@ -185,7 +331,7 @@ export class SimulationEngine {
       })
 
       emit({
-        event_id: `evt-${Date.now()}-gen`,
+        event_id: `evt-${Date.now()}-s${step}gen`,
         session_id: sessionId,
         event_type: 'token_generated',
         timestamp: new Date().toISOString(),
@@ -193,16 +339,16 @@ export class SimulationEngine {
         data: {
           token_string: nextWord,
           token_id: chosenId,
-          probability: topTokens[0].probability,
+          probability: probs[0],
         },
         tensor_references: [],
       })
 
-      // Realistic generation delay between tokens (60-90ms)
-      await delay(75)
+      // Realistic variable delay between tokens
+      await delay(50 + rng() * 80)
     }
 
-    // 4. Generation Completed
+    // 5. Generation Completed
     emit({
       event_id: `evt-${Date.now()}-done`,
       session_id: sessionId,
@@ -211,7 +357,7 @@ export class SimulationEngine {
       generation_step: numTokensToGen,
       data: {
         total_tokens: numTokensToGen,
-        duration_ms: numTokensToGen * 180,
+        duration_ms: numTokensToGen * (120 + Math.floor(rng() * 60)),
       },
       tensor_references: [],
     })
