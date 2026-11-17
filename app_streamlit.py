@@ -37,8 +37,9 @@ st.caption("Interactive Mechanistic Interpretability & LLM Inference Explorer (P
 
 # Sidebar Settings
 st.sidebar.header("⚙️ Configuration")
-api_key = st.sidebar.text_input("Google Gemini API Key", type="password", placeholder="AIzaSy...", help="Get a free key from aistudio.google.com/app/apikey")
-model_choice = st.sidebar.selectbox("Model", ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"])
+default_key = os.environ.get("GEMINI_API_KEY", "")
+api_key = st.sidebar.text_input("Google Gemini API Key", value=default_key, type="password", help="Get a free key from aistudio.google.com/app/apikey")
+model_choice = st.sidebar.selectbox("Model", ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash"])
 
 st.sidebar.subheader("Hyperparameters")
 temperature = st.sidebar.slider("Temperature", 0.0, 1.5, 0.7, 0.05)
@@ -68,7 +69,7 @@ if run_btn:
             start_time = time.time()
             
             with st.spinner("Executing model forward pass & token generation..."):
-                candidate_models = [model_choice, "gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+                candidate_models = [model_choice, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash", "gemini-3.7-flash"]
                 response = None
                 last_error = None
                 for m in candidate_models:
