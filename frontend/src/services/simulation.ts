@@ -245,7 +245,9 @@ export class SimulationEngine {
 
     // 3. Check for direct Gemini API call from browser
     let generatedWords: string[] | null = null
-    const geminiKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null
+    const geminiKey = typeof window !== 'undefined'
+      ? (localStorage.getItem('gemini_api_key') || (import.meta as any).env?.VITE_GEMINI_API_KEY || null)
+      : null
 
     if (geminiKey) {
       // Try multiple model names (older ones get deprecated)

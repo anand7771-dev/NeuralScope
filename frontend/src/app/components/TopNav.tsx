@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Activity, Cpu, Layers, Server } from 'lucide-react'
 import { StatusDot } from '@/components/ui/StatusDot'
@@ -12,6 +12,17 @@ export function TopNav() {
   const models = useModelStore(s => s.models)
   const loadedModel = models.find(m => m.is_loaded)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  // Auto-open Backend modal on first visit if no Gemini key is configured
+  useEffect(() => {
+    const hasKey = localStorage.getItem('gemini_api_key')
+    const envKey = (import.meta as any).env?.VITE_GEMINI_API_KEY
+    const dismissed = sessionStorage.getItem('backend_modal_dismissed')
+    if (!hasKey && !envKey && !dismissed) {
+      setIsSettingsOpen(true)
+      sessionStorage.setItem('backend_modal_dismissed', '1')
+    }
+  }, [])
 
   const navLinks = [
     { to: '/', label: 'Dashboard', icon: Activity },
