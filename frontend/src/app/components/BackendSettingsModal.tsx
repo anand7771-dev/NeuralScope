@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Server, Check, X, ExternalLink, Zap } from 'lucide-react'
+import { Server, Check, X, Key, Zap } from 'lucide-react'
 import { getBackendBaseUrl } from '@/services/api'
 
 interface Props {
@@ -9,11 +9,13 @@ interface Props {
 
 export function BackendSettingsModal({ isOpen, onClose }: Props) {
   const [url, setUrl] = useState('')
+  const [geminiKey, setGeminiKey] = useState('')
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
       setUrl(localStorage.getItem('neuralscope_backend_url') || '')
+      setGeminiKey(localStorage.getItem('gemini_api_key') || '')
       setSaved(false)
     }
   }, [isOpen])
@@ -26,6 +28,13 @@ export function BackendSettingsModal({ isOpen, onClose }: Props) {
     } else {
       localStorage.removeItem('neuralscope_backend_url')
     }
+
+    if (geminiKey.trim()) {
+      localStorage.setItem('gemini_api_key', geminiKey.trim())
+    } else {
+      localStorage.removeItem('gemini_api_key')
+    }
+
     setSaved(true)
     setTimeout(() => {
       onClose()
@@ -60,34 +69,43 @@ export function BackendSettingsModal({ isOpen, onClose }: Props) {
             <Server className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-base font-mono">Backend Connection Settings</h3>
-            <p className="text-xs text-ns-textMuted">Configure live PyTorch server or use demo simulation</p>
+            <h3 className="font-semibold text-base font-mono">Backend & API Settings</h3>
+            <p className="text-xs text-ns-textMuted">Configure Google Gemini key or remote server</p>
           </div>
         </div>
 
         <div className="space-y-4 text-xs font-mono">
-          <div className="p-3 bg-ns-elevated border border-ns-border rounded-lg">
-            <div className="flex justify-between items-center mb-1 text-[11px]">
-              <span className="text-ns-textMuted">Active Target:</span>
-              <span className="text-ns-blue font-bold truncate max-w-[260px]">{activeUrl}</span>
+          {/* Gemini API Key */}
+          <div className="p-3 bg-ns-elevated border border-ns-purple/40 rounded-lg">
+            <div className="flex items-center gap-2 mb-1.5 text-ns-purple font-semibold">
+              <Key className="w-4 h-4" />
+              <span>Google Gemini API Key</span>
             </div>
-            <p className="text-[11px] text-ns-textMuted font-sans">
-              On Vercel, NeuralScope runs in <b>Built-in Demo Simulation Mode</b> by default. To connect your live GPU/CPU PyTorch backend, enter your public backend URL below.
+            <p className="text-[11px] text-ns-textMuted font-sans mb-2">
+              Enter your Gemini API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-ns-blue underline">Google AI Studio</a>. NeuralScope will use official Gemini 2.0 Flash for real, intelligent inference.
             </p>
+            <input
+              type="password"
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full bg-ns-base border border-ns-border px-3 py-2 rounded-lg text-white font-mono text-xs focus:border-ns-purple outline-none"
+            />
           </div>
 
+          {/* Backend URL */}
           <div>
-            <label className="block mb-1 text-ns-textMuted">Custom Remote Backend URL (HTTP/HTTPS):</label>
+            <div className="flex justify-between items-center mb-1 text-[11px]">
+              <span className="text-ns-textMuted">Custom Remote Backend URL:</span>
+              <span className="text-ns-blue font-bold truncate max-w-[200px]">{activeUrl}</span>
+            </div>
             <input
               type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="e.g. https://my-neuralscope.up.railway.app or ngrok url"
+              placeholder="e.g. https://my-backend.railway.app or leave blank for local"
               className="w-full bg-ns-base border border-ns-border px-3 py-2 rounded-lg text-white font-mono text-xs focus:border-ns-blue outline-none"
             />
-            <span className="text-[10px] text-ns-textMuted block mt-1">
-              Supports Railway, Render, Fly.io, Cloudflare Tunnel, or ngrok.
-            </span>
           </div>
 
           <div className="flex items-center justify-between pt-2">
@@ -96,7 +114,7 @@ export function BackendSettingsModal({ isOpen, onClose }: Props) {
               onClick={handleResetToDemo}
               className="px-3 py-1.5 rounded-lg border border-ns-border text-ns-textMuted hover:text-white transition-colors"
             >
-              Reset to Demo Mode
+              Reset Defaults
             </button>
 
             <button
@@ -110,7 +128,7 @@ export function BackendSettingsModal({ isOpen, onClose }: Props) {
                 </>
               ) : (
                 <>
-                  <Zap className="w-3.5 h-3.5" /> Save & Reconnect
+                  <Zap className="w-3.5 h-3.5" /> Save & Connect
                 </>
               )}
             </button>
@@ -120,4 +138,3 @@ export function BackendSettingsModal({ isOpen, onClose }: Props) {
     </div>
   )
 }
-

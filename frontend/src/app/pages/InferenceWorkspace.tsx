@@ -30,6 +30,7 @@ export function InferenceWorkspace() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const { startInference, isRunning } = useInference()
+  const currentSessionId = useInferenceStore(s => s.currentSessionId)
   const addEvent = useInferenceStore(s => s.addEvent)
   const reset = useInferenceStore(s => s.reset)
 
@@ -37,9 +38,9 @@ export function InferenceWorkspace() {
     'generation' | 'tokenization' | 'layers' | 'attention' | 'embeddings' | 'tensors' | 'operations' | 'sampling'
   >('generation')
 
-  // Replay historical session if id provided and not 'new'
+  // Replay historical session only if id provided, not 'new', and not the current active session
   useEffect(() => {
-    if (sessionId && sessionId !== 'new') {
+    if (sessionId && sessionId !== 'new' && sessionId !== currentSessionId) {
       reset()
       api.sessions
         .getEvents<InferenceEvent[]>(sessionId)
@@ -52,7 +53,7 @@ export function InferenceWorkspace() {
           console.error('Failed to load session events:', err)
         })
     }
-  }, [sessionId, reset, addEvent])
+  }, [sessionId, currentSessionId, reset, addEvent])
 
   const handleRunInference = async (config: InferenceConfig) => {
     try {

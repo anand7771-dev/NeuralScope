@@ -243,8 +243,42 @@ export class SimulationEngine {
     await delay(80 + rng() * 60)
     if (this.aborted) return
 
-    // 3. Select prompt-aware response tokens
-    const generatedWords = selectResponse(prompt, rng)
+    // 3. Check for direct Gemini API call from browser
+    let generatedWords: string[] | null = null
+    const geminiKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null
+
+    if (geminiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                maxOutputTokens: maxTokens * 4,
+                temperature: config.temperature ?? 0.7,
+              },
+            }),
+          }
+        )
+        const resJson = await response.json()
+        const text = resJson?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (text) {
+          // Tokenize the real Gemini answer into realistic subwords
+          const rawWords = text.match(/\S+|\s+/g) || []
+          generatedWords = rawWords.map((w: string) => w.startsWith(' ') ? w : ' ' + w)
+        }
+      } catch (err) {
+        console.warn('Direct Gemini API call failed, using heuristic responses:', err)
+      }
+    }
+
+    if (!generatedWords || generatedWords.length === 0) {
+      generatedWords = selectResponse(prompt, rng)
+    }
+
     const numTokensToGen = Math.min(maxTokens, generatedWords.length)
 
     // 4. Autoregressive Generation Loop

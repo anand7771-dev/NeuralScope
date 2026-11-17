@@ -19,7 +19,9 @@ export function TopNav() {
   ]
 
   const wsDotStatus =
-    wsStatus === 'connected' ? 'loaded' : wsStatus === 'connecting' ? 'loading' : wsStatus === 'error' ? 'error' : 'idle'
+    wsStatus === 'connected' ? 'loaded' : wsStatus === 'connecting' ? 'loading' : wsStatus === 'error' ? 'error' : loadedModel ? 'loaded' : 'idle'
+  const wsLabel =
+    wsStatus === 'connected' ? 'CONNECTED' : wsStatus === 'connecting' ? 'CONNECTING' : loadedModel ? 'READY' : 'OFFLINE'
 
   return (
     <>

@@ -20,6 +20,7 @@ from app.api.routes import (
 )
 from app.api.websocket import router as ws_router
 from app.adapters.gpt2 import GPT2Adapter
+from app.adapters.gemini import GeminiAdapter
 from app.config import get_settings
 from app.inference.engine import inference_engine
 
@@ -33,7 +34,13 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=settings.log_level)
     logger.info("Starting %s v%s", settings.app_name, settings.app_version)
 
-    # Register default GPT-2 adapter
+    # Register models
+    gemini_adapter = GeminiAdapter()
+    gemini_adapter.load()
+    inference_engine.register_adapter("gemini", gemini_adapter)
+    logger.info("Registered adapter 'gemini'")
+
+    # Register GPT-2 adapter
     gpt2_adapter = GPT2Adapter()
     inference_engine.register_adapter("gpt2", gpt2_adapter)
     logger.info("Registered default adapter 'gpt2'")
