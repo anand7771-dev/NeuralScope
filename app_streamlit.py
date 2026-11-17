@@ -39,10 +39,10 @@ st.caption("Interactive Mechanistic Interpretability & LLM Inference Explorer (P
 st.sidebar.header("⚙️ Configuration")
 default_key = os.environ.get("GEMINI_API_KEY", "")
 api_key = st.sidebar.text_input("Google Gemini API Key", value=default_key, type="password", help="Get a free key from aistudio.google.com/app/apikey")
-model_choice = st.sidebar.selectbox("Model", ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash"])
+st.sidebar.success("Model: Google Gemini 3.8 Flash (Verified)")
 
 st.sidebar.subheader("Hyperparameters")
-temperature = st.sidebar.slider("Temperature", 0.0, 1.5, 0.7, 0.05)
+temperature = st.sidebar.slider("Temperature", 0.0, 1.0, 0.7, 0.05)
 max_tokens = st.sidebar.slider("Max Tokens", 50, 500, 200, 25)
 
 # Main prompt input
@@ -69,29 +69,14 @@ if run_btn:
             start_time = time.time()
             
             with st.spinner("Executing model forward pass & token generation..."):
-                candidate_models = [model_choice, "gemini-3.8-flash", "gemini-flash-latest", "gemini-3.5-flash", "gemini-3.7-flash"]
-                response = None
-                last_error = None
-                for m in candidate_models:
-                    try:
-                        response = client.models.generate_content(
-                            model=m,
-                            contents=prompt,
-                            config={
-                                "temperature": temperature,
-                                "max_output_tokens": max_tokens,
-                            }
-                        )
-                        if response and response.text:
-                            break
-                    except Exception as err:
-                        last_error = err
-                        continue
-
-                if not response or not response.text:
-                    if last_error:
-                        raise last_error
-                    raise RuntimeError("No output generated")
+                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=prompt,
+                    config={
+                        "temperature": float(temperature),
+                        "max_output_tokens": int(max_tokens),
+                    }
+                )
 
                 generated_text = response.text or ""
                 elapsed = time.time() - start_time
